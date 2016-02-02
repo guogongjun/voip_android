@@ -4,7 +4,6 @@ import android.os.AsyncTask;
 import android.text.TextUtils;
 import android.util.Log;
 
-import com.beetle.voip.VOIPCommand;
 import com.beetle.im.BytePacket;
 import com.beetle.im.Timer;
 import com.beetle.im.VOIPControl;
@@ -14,6 +13,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.Date;
+import java.util.UUID;
 
 import static android.os.SystemClock.uptimeMillis;
 
@@ -35,8 +35,8 @@ public class VOIPSession implements VOIPObserver {
 
 
     //session mode
-    private static final int SESSION_VOICE = 0;
-    private static final int SESSION_VIDEO = 1;
+    public static final int SESSION_VOICE = 0;
+    public static final int SESSION_VIDEO = 1;
 
     private static final String TAG = "voip";
 
@@ -78,10 +78,11 @@ public class VOIPSession implements VOIPObserver {
 
     private int state;
     private int mode;
+    private UUID sessionID;
 
     public static interface VOIPSessionObserver  {
         //对方拒绝接听
-        public void onRefuse();
+        public void onRefuse(int reason);
         //对方挂断通话
         public void onHangUp();
 
@@ -95,7 +96,7 @@ public class VOIPSession implements VOIPObserver {
     };
 
 
-    public VOIPSession(long currentUID, long peerUID) {
+    public VOIPSession(long currentUID, long peerUID, int mode, UUID sessionID) {
         state = VOIP_ACCEPTING;
         this.currentUID = currentUID;
         this.peerUID = peerUID;
@@ -103,6 +104,15 @@ public class VOIPSession implements VOIPObserver {
         this.voipPort = VOIP_PORT;
         this.stunServer = STUN_SERVER;
         this.refreshing = false;
+        this.mode = mode;
+        this.sessionID = sessionID;
+    }
+
+    public int getMode() {
+        return mode;
+    }
+    public UUID getSessionID() {
+        return sessionID;
     }
 
     //获取中转服务器IP地址
@@ -237,9 +247,7 @@ public class VOIPSession implements VOIPObserver {
 
     public void dial() {
         state = VOIPSession.VOIP_DIALING;
-        mode = SESSION_VOICE;
         this.dialBeginTimestamp = getNow();
-
         sendDial();
 
         this.dialTimer = new Timer() {
@@ -251,30 +259,12 @@ public class VOIPSession implements VOIPObserver {
         this.dialTimer.setTimer(uptimeMillis()+1000, 1000);
         this.dialTimer.resume();
 
-    }
-
-    public void dialVideo() {
-        state = VOIPSession.VOIP_DIALING;
-        mode = SESSION_VIDEO;
-        this.dialBeginTimestamp = getNow();
-
-        sendDial();
-
-        this.dialTimer = new Timer() {
-            @Override
-            protected void fire() {
-                VOIPSession.this.sendDial();
-            }
-        };
-        this.dialTimer.setTimer(uptimeMillis()+1000, 1000);
-        this.dialTimer.resume();
     }
 
     public void accept() {
         Log.i(TAG, "accepting...");
 
         state = VOIPSession.VOIP_ACCEPTED;
-
 
         if (this.localNatMap == null) {
             this.localNatMap = new VOIPCommand.NatPortMap();
@@ -294,7 +284,7 @@ public class VOIPSession implements VOIPObserver {
 
     }
 
-    public void refuse() {
+    public void refuse(final int reason) {
         Log.i(TAG, "refusing...");
         state = VOIPSession.VOIP_REFUSING;
 
@@ -303,13 +293,13 @@ public class VOIPSession implements VOIPObserver {
         this.refuseTimer = new Timer() {
             @Override
             protected void fire() {
-                VOIPSession.this.sendDialRefuse();
+                VOIPSession.this.sendDialRefuse(reason);
             }
         };
         this.refuseTimer.setTimer(uptimeMillis()+1000, 1000);
         this.refuseTimer.resume();
 
-        sendDialRefuse();
+        sendDialRefuse(reason);
     }
 
     public void hangup() {
@@ -354,6 +344,10 @@ public class VOIPSession implements VOIPObserver {
                 this.dialTimer.suspend();
                 this.dialTimer = null;
 
+                //使用对端的通话模式
+                Log.i(TAG, "dial mode:" + this.mode + " accept mode:" + command.mode);
+                this.mode = command.mode;
+
                 Log.i(TAG, "voip connected");
                 observer.onConnected();
 
@@ -366,7 +360,7 @@ public class VOIPSession implements VOIPObserver {
                 this.dialTimer.suspend();
                 this.dialTimer = null;
 
-                this.observer.onRefuse();
+                this.observer.onRefuse(command.refuseReason);
             } else if (command.cmd == VOIPCommand.VOIP_COMMAND_TALKING) {
                 state = VOIPSession.VOIP_SHUTDOWN;
 
@@ -435,16 +429,17 @@ public class VOIPSession implements VOIPObserver {
         return (int)(t/1000);
     }
 
-
-    private void sendControlCommand(int cmd) {
+    private void sendCommand(VOIPCommand command) {
         VOIPControl ctl = new VOIPControl();
         ctl.sender = currentUID;
         ctl.receiver = peerUID;
-
-        VOIPCommand command = new VOIPCommand();
-        command.cmd = cmd;
         ctl.content = command.getContent();
         VOIPService.getInstance().sendVOIPControl(ctl);
+    }
+    private void sendControlCommand(int cmd) {
+        VOIPCommand command = new VOIPCommand();
+        command.cmd = cmd;
+        sendCommand(command);
     }
 
     private void sendDial() {
@@ -461,6 +456,7 @@ public class VOIPSession implements VOIPObserver {
             assert(false);
         }
         command.dialCount = this.dialCount + 1;
+        command.sessionID = this.sessionID;
         ctl.content = command.getContent();
 
         if (!TextUtils.isEmpty(this.voipHostIP)) {
@@ -527,6 +523,7 @@ public class VOIPSession implements VOIPObserver {
         VOIPCommand command = new VOIPCommand();
         command.cmd = VOIPCommand.VOIP_COMMAND_ACCEPT;
         command.natMap = this.localNatMap;
+        command.mode = this.mode;
         ctl.content = command.getContent();
 
         VOIPService.getInstance().sendVOIPControl(ctl);
@@ -540,8 +537,11 @@ public class VOIPSession implements VOIPObserver {
         }
     }
 
-    private void sendDialRefuse() {
-        sendControlCommand(VOIPCommand.VOIP_COMMAND_REFUSE);
+    private void sendDialRefuse(int reason) {
+        VOIPCommand command = new VOIPCommand();
+        command.cmd = VOIPCommand.VOIP_COMMAND_REFUSE;
+        command.refuseReason = reason;
+        sendCommand(command);
 
         long now = getNow();
         if (now - this.refuseTimestamp > 10) {

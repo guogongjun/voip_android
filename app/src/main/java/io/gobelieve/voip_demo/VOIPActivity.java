@@ -7,7 +7,6 @@ import android.content.res.AssetFileDescriptor;
 import android.content.res.Configuration;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
-import android.opengl.GLSurfaceView;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Bundle;
@@ -17,8 +16,6 @@ import android.view.KeyEvent;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
-import android.view.Window;
-import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.ImageView;
@@ -33,6 +30,7 @@ import com.beetle.voip.VOIPSession;
 
 
 import java.util.Date;
+import java.util.UUID;
 
 
 import static android.os.SystemClock.uptimeMillis;
@@ -142,6 +140,14 @@ public class VOIPActivity extends Activity implements VOIPSession.VOIPSessionObs
             return;
         }
 
+        String sessionID = intent.getStringExtra("session_id");
+        if (TextUtils.isEmpty(sessionID)) {
+            sessionID = UUID.randomUUID().toString();
+            Log.i(TAG, "generate session id:" + sessionID);
+        } else {
+            Log.i(TAG, "session id:" + sessionID);
+        }
+
         sHandler = new Handler();
         sHandler.post(mHideRunnable);
         final View decorView = getWindow().getDecorView();
@@ -161,13 +167,9 @@ public class VOIPActivity extends Activity implements VOIPSession.VOIPSessionObs
         durationTextView = (TextView)findViewById(R.id.duration);
 
         ImageView header = (ImageView)findViewById(R.id.header);
-
-
-
         header.setImageResource(R.drawable.avatar_contact);
 
-
-        voipSession = new VOIPSession(currentUID, peerUID);
+        voipSession = new VOIPSession(currentUID, peerUID, this.getMode(), UUID.fromString(sessionID));
         voipSession.setObserver(this);
         voipSession.holePunch();
 
@@ -318,7 +320,7 @@ public class VOIPActivity extends Activity implements VOIPSession.VOIPSessionObs
     public void refuse(View v) {
         Log.i(TAG, "refusing...");
 
-        voipSession.refuse();
+        voipSession.refuse(100);
 
         this.player.stop();
         this.player = null;
@@ -357,8 +359,12 @@ public class VOIPActivity extends Activity implements VOIPSession.VOIPSessionObs
         return headphone;
     }
 
-    protected void dial() {
+    protected int getMode() {
+        return VOIPSession.SESSION_VOICE;
+    }
 
+    protected void dial() {
+        this.voipSession.dial();
     }
 
     protected void startStream() {
@@ -392,7 +398,8 @@ public class VOIPActivity extends Activity implements VOIPSession.VOIPSessionObs
 
     //对方拒绝接听
     @Override
-    public void onRefuse() {
+    public void onRefuse(int reason) {
+        Log.i(TAG, "refuse reason:" + reason);
         this.player.stop();
         this.player = null;
 

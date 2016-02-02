@@ -16,7 +16,7 @@ import android.widget.EditText;
 import android.widget.Toast;
 
 import com.beetle.NativeWebRtcContextRegistry;
-import com.beetle.VOIPCommand;
+import com.beetle.voip.VOIPCommand;
 import com.beetle.im.VOIPControl;
 import com.beetle.im.VOIPObserver;
 import com.beetle.voip.VOIPService;
@@ -311,6 +311,7 @@ public class MainActivity extends ActionBarActivity implements VOIPObserver {
                 intent.putExtra("current_uid", myUID);
                 intent.putExtra("token", token);
                 intent.putExtra("is_caller", false);
+                intent.putExtra("session_id", command.sessionID.toString());
                 startActivity(intent);
             }
         } else if (command.cmd == VOIPCommand.VOIP_COMMAND_DIAL_VIDEO) {
@@ -324,6 +325,7 @@ public class MainActivity extends ActionBarActivity implements VOIPObserver {
                 intent.putExtra("current_uid", myUID);
                 intent.putExtra("token", token);
                 intent.putExtra("is_caller", false);
+                intent.putExtra("session_id", command.sessionID.toString());
                 startActivity(intent);
             }
         }

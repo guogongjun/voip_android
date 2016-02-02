@@ -29,8 +29,8 @@ public class VOIPVoiceActivity extends VOIPActivity {
         super.onCreate(savedInstanceState);
     }
 
-    protected void dial() {
-        this.voipSession.dial();
+    protected int getMode() {
+        return VOIPSession.SESSION_VOICE;
     }
 
     protected void startStream() {

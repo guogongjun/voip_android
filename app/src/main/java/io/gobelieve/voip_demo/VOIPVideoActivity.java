@@ -62,8 +62,8 @@ public class VOIPVideoActivity extends VOIPActivity {
 
     }
 
-    protected void dial() {
-        this.voipSession.dialVideo();
+    protected int getMode() {
+        return VOIPSession.SESSION_VIDEO;
     }
 
     protected void startStream() {
