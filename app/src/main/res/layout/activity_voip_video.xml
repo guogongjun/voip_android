@@ -36,6 +36,16 @@
                 android:layout_marginTop="10dp"
                 />
 
+            <Button
+                android:text="摄像头开/关"
+                android:id="@+id/modeButton"
+                android:onClick="switchMode"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_below="@id/switchButton"
+                android:layout_alignLeft="@id/switchButton"
+                />
+
             <ImageView
                 android:id="@+id/header"
                 android:layout_width="120dp"

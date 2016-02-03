@@ -34,6 +34,8 @@ public class VOIPVideoActivity extends VOIPActivity {
 
     private VOIPCapture capture;
 
+    private int sessionMode = VOIPSession.SESSION_VIDEO;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
 
@@ -63,7 +65,7 @@ public class VOIPVideoActivity extends VOIPActivity {
     }
 
     protected int getMode() {
-        return VOIPSession.SESSION_VIDEO;
+        return sessionMode;
     }
 
     protected void startStream() {
@@ -151,6 +153,39 @@ public class VOIPVideoActivity extends VOIPActivity {
     public void switchCamera(View v ) {
         if (this.voip != null) {
             this.voip.switchCamera();
+        }
+    }
+
+    public void switchMode(View v) {
+        if (this.voip != null) {
+            if (sessionMode == VOIPSession.SESSION_VIDEO) {
+                this.voip.stopCapture();
+            } else {
+                this.voip.startCapture();
+            }
+        }
+
+        if (sessionMode == VOIPSession.SESSION_VIDEO) {
+            sessionMode = VOIPSession.SESSION_VOICE;
+        } else {
+            sessionMode = VOIPSession.SESSION_VIDEO;
+        }
+
+        this.voipSession.setSessionMode(sessionMode);
+    }
+
+    @Override
+    public void onMode(int mode) {
+        Log.i(TAG, "session mode:" + mode);
+        if (mode != this.sessionMode) {
+            this.sessionMode = mode;
+            if (this.voip != null) {
+                if (this.sessionMode == VOIPSession.SESSION_VIDEO) {
+                    this.voip.startCapture();
+                } else if (this.sessionMode == VOIPSession.SESSION_VOICE) {
+                    this.voip.stopCapture();
+                }
+            }
         }
     }
 

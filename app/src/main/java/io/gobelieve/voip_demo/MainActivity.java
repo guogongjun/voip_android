@@ -300,7 +300,7 @@ public class MainActivity extends ActionBarActivity implements VOIPObserver {
     }
     public void onVOIPControl(VOIPControl ctl) {
         VOIPCommand command = new VOIPCommand(ctl.content);
-        if (command.cmd == VOIPCommand.VOIP_COMMAND_DIAL) {
+        if (command.cmd == VOIPCommand.VOIP_COMMAND_DIAL && command.mode == VOIPSession.SESSION_VOICE) {
             if (ctl.sender == peerUID) {
                 dialog.dismiss();
 
@@ -314,7 +314,7 @@ public class MainActivity extends ActionBarActivity implements VOIPObserver {
                 intent.putExtra("session_id", command.sessionID.toString());
                 startActivity(intent);
             }
-        } else if (command.cmd == VOIPCommand.VOIP_COMMAND_DIAL_VIDEO) {
+        } else if (command.cmd == VOIPCommand.VOIP_COMMAND_DIAL && command.mode == VOIPSession.SESSION_VIDEO) {
             if (ctl.sender == peerUID) {
                 dialog.dismiss();
 

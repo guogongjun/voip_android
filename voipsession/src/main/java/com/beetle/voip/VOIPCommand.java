@@ -18,15 +18,15 @@ public class VOIPCommand {
     public static final int VOIP_COMMAND_HANG_UP = 6;
     public static final int VOIP_COMMAND_TALKING = 8;
 
-    public static final int VOIP_COMMAND_DIAL_VIDEO = 9;
+    public static final int VOIP_COMMAND_MODE = 10;
 
 
     public int cmd;
 
-    public int dialCount;//只对VOIP_COMMAND_DIAL, VOIP_COMMAND_DIAL_VIDEO有意义
-    public UUID sessionID;//只对VOIP_COMMAND_DIAL, VOIP_COMMAND_DIAL_VIDEO有意义
+    public int dialCount;//VOIP_COMMAND_DIAL,
+    public UUID sessionID;//VOIP_COMMAND_DIAL
 
-    public int mode;//VOIP_COMMAND_ACCEPT
+    public int mode;//VOIP_COMMAND_DIAL, VOIP_COMMAND_ACCEPT
 
     public NatPortMap natMap; //VOIP_COMMAND_ACCEPT，VOIP_COMMAND_CONNECTED
     public static class NatPortMap {
@@ -48,9 +48,10 @@ public class VOIPCommand {
 
         this.cmd = BytePacket.readInt32(data, pos);
         pos += 4;
-        if (this.cmd == VOIP_COMMAND_DIAL ||
-                this.cmd == VOIP_COMMAND_DIAL_VIDEO) {
+        if (this.cmd == VOIP_COMMAND_DIAL) {
             this.dialCount = BytePacket.readInt32(data, pos);
+            pos += 4;
+            this.mode = BytePacket.readInt32(data, pos);
             pos += 4;
             long mostSigBits = BytePacket.readInt64(data, pos);
             pos += 8;
@@ -80,6 +81,9 @@ public class VOIPCommand {
         } else if (this.cmd == VOIP_COMMAND_REFUSE) {
             this.refuseReason = BytePacket.readInt32(data, pos);
             pos += 4;
+        } else if (this.cmd == VOIP_COMMAND_MODE) {
+            this.mode = BytePacket.readInt32(data, pos);
+            pos += 4;
         }
     }
 
@@ -90,9 +94,10 @@ public class VOIPCommand {
         BytePacket.writeInt32(this.cmd, buf, pos);
         pos += 4;
 
-        if (this.cmd == VOIP_COMMAND_DIAL ||
-                this.cmd == VOIP_COMMAND_DIAL_VIDEO) {
+        if (this.cmd == VOIP_COMMAND_DIAL) {
             BytePacket.writeInt32(this.dialCount, buf, pos);
+            pos += 4;
+            BytePacket.writeInt32(this.mode, buf, pos);
             pos += 4;
             long mostSignBits = this.sessionID.getMostSignificantBits();
             long leastSignBits = this.sessionID.getLeastSignificantBits();
@@ -100,7 +105,7 @@ public class VOIPCommand {
             pos += 8;
             BytePacket.writeInt64(leastSignBits, buf, pos);
             pos += 8;
-            return Arrays.copyOf(buf, 24);
+            return Arrays.copyOf(buf, 28);
         } else if (this.cmd == VOIP_COMMAND_ACCEPT) {
             if (this.natMap != null) {
                 BytePacket.writeInt32(this.natMap.ip, buf, pos);
@@ -133,6 +138,10 @@ public class VOIPCommand {
             return Arrays.copyOf(buf, 14);
         } else if (this.cmd == VOIP_COMMAND_REFUSE) {
             BytePacket.writeInt32(this.refuseReason, buf, pos);
+            pos += 4;
+            return Arrays.copyOf(buf, 8);
+        } else if (this.cmd == VOIP_COMMAND_MODE) {
+            BytePacket.writeInt32(this.mode, buf, pos);
             pos += 4;
             return Arrays.copyOf(buf, 8);
         } else {

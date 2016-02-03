@@ -457,4 +457,9 @@ public class VOIPActivity extends Activity implements VOIPSession.VOIPSessionObs
     public void onRefuseFinshed() {
         dismiss();
     }
+
+    @Override
+    public void onMode(int mode) {
+        Log.i(TAG, "session mode:" + mode);
+    }
 }

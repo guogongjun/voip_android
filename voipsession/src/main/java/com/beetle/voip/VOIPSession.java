@@ -35,8 +35,8 @@ public class VOIPSession implements VOIPObserver {
 
 
     //session mode
-    public static final int SESSION_VOICE = 0;
-    public static final int SESSION_VIDEO = 1;
+    public static final int SESSION_VOICE = 1;
+    public static final int SESSION_VIDEO = 2;
 
     private static final String TAG = "voip";
 
@@ -73,6 +73,8 @@ public class VOIPSession implements VOIPObserver {
     private Timer refuseTimer;
     private long refuseTimestamp;
 
+    private Timer setModeTimer;
+
 
     private VOIPSessionObserver observer;
 
@@ -93,6 +95,8 @@ public class VOIPSession implements VOIPObserver {
         public void onAcceptTimeout();
         public void onConnected();
         public void onRefuseFinshed();
+
+        public void onMode(int mode);
     };
 
 
@@ -313,9 +317,32 @@ public class VOIPSession implements VOIPObserver {
         } else if (state == VOIPSession.VOIP_CONNECTED) {
             sendHangUp();
             state = VOIPSession.VOIP_HANGED_UP;
-
+            if (setModeTimer != null) {
+                setModeTimer.suspend();
+                setModeTimer = null;
+            }
         } else {
             Log.i(TAG, "invalid voip state:" + state);
+        }
+    }
+
+    public void setSessionMode(int mode) {
+        this.mode = mode;
+        if (this.state == VOIPSession.VOIP_CONNECTED) {
+            if (setModeTimer == null) {
+                setModeTimer = new Timer() {
+                    @Override
+                    protected void fire() {
+                        VOIPCommand command = new VOIPCommand();
+                        command.cmd = VOIPCommand.VOIP_COMMAND_MODE;
+                        command.mode = VOIPSession.this.mode;
+                        sendCommand(command);
+                    }
+                };
+            }
+
+            setModeTimer.setTimer(uptimeMillis(), 1000);
+            setModeTimer.resume();
         }
     }
 
@@ -372,6 +399,8 @@ public class VOIPSession implements VOIPObserver {
             if (command.cmd == VOIPCommand.VOIP_COMMAND_HANG_UP) {
                 state = VOIPSession.VOIP_HANGED_UP;
                 observer.onHangUp();
+            } else if (command.cmd == VOIPCommand.VOIP_COMMAND_DIAL) {
+                this.mode = command.mode;
             }
         } else if (state == VOIPSession.VOIP_ACCEPTED) {
             if (command.cmd == VOIPCommand.VOIP_COMMAND_CONNECTED) {
@@ -405,10 +434,32 @@ public class VOIPSession implements VOIPObserver {
             if (command.cmd == VOIPCommand.VOIP_COMMAND_HANG_UP) {
                 state = VOIPSession.VOIP_HANGED_UP;
 
+                if (setModeTimer != null) {
+                    setModeTimer.suspend();
+                    setModeTimer = null;
+                }
+
                 observer.onHangUp();
 
             } else if (command.cmd == VOIPCommand.VOIP_COMMAND_ACCEPT) {
                 sendConnected();
+            } else if (command.cmd == VOIPCommand.VOIP_COMMAND_MODE) {
+                if (command.mode == this.mode) {
+                    if (setModeTimer != null) {
+                        setModeTimer.suspend();
+                        setModeTimer = null;
+                    }
+                } else {
+                    this.mode = command.mode;
+
+                    VOIPCommand resp = new VOIPCommand();
+                    resp.cmd = VOIPCommand.VOIP_COMMAND_MODE;
+                    resp.mode = command.mode;
+                    sendCommand(resp);
+
+                    observer.onMode(command.mode);
+                }
+
             }
         } else if (state == VOIPSession.VOIP_REFUSING) {
             if (command.cmd == VOIPCommand.VOIP_COMMAND_REFUSED) {
@@ -448,13 +499,8 @@ public class VOIPSession implements VOIPObserver {
         ctl.receiver = peerUID;
 
         VOIPCommand command = new VOIPCommand();
-        if (mode == SESSION_VOICE) {
-            command.cmd = VOIPCommand.VOIP_COMMAND_DIAL;
-        } else if (mode == SESSION_VIDEO) {
-            command.cmd = VOIPCommand.VOIP_COMMAND_DIAL_VIDEO;
-        } else {
-            assert(false);
-        }
+        command.cmd = VOIPCommand.VOIP_COMMAND_DIAL;
+        command.mode = mode;
         command.dialCount = this.dialCount + 1;
         command.sessionID = this.sessionID;
         ctl.content = command.getContent();
